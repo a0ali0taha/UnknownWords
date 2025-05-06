@@ -4,7 +4,9 @@ import 'package:enjaz/database_helper.dart';
 import 'package:enjaz/achievement.dart';
 import 'package:intl/intl.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await DatabaseHelper.instance.init();
   runApp(const MyApp());
 }
 
@@ -83,6 +85,21 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  FutureBuilder<int>(
+                    future: DatabaseHelper.instance.getTotalAchievements(child),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return Text(
+                          'Total Achievements: ${snapshot.data}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -103,7 +120,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       }).toList(),
                       onChanged: (value) {
                         if (value != null) {
-                          _saveAchievement(child, value);
+                          _saveAchievement(child, value).then((_) {
+                            setState(() {});
+                          });
                         }
                       },
                     ),
