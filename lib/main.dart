@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Children Achievements',
+      title: 'إنجازات ',
       theme: ThemeData(
         primarySwatch: Colors.purple,
         fontFamily: 'ComicNeue',
@@ -35,15 +35,18 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<String> children = ['Salma', 'Jana', 'Hana'];
+  final List<Map<String, String>> children = [
+    {'name': 'سلمى', 'emoji': '🦄'},
+    {'name': 'جنى', 'emoji': '🦋'},
+    {'name': 'هنا', 'emoji': '🌟'},
+  ];
   final Map<String, int?> selectedNumbers = {};
 
   @override
   void initState() {
     super.initState();
-    // Initialize selected numbers for each child
-    for (String child in children) {
-      selectedNumbers[child] = null;
+    for (var child in children) {
+      selectedNumbers[child['name']!] = null;
     }
   }
 
@@ -62,76 +65,107 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Children Achievements'),
-        centerTitle: true,
-      ),
-      body: ListView.builder(
-        itemCount: children.length,
-        itemBuilder: (context, index) {
-          final child = children[index];
-          
-          return Card(
-            margin: const EdgeInsets.all(8.0),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    child,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  FutureBuilder<int>(
-                    future: DatabaseHelper.instance.getTotalAchievements(child),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData) {
-                        return Text(
-                          'Total Achievements: ${snapshot.data}',
+    return Container(
+      color: const Color(0xFFFFF3E0), // Soft pastel background
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.purple[100],
+          title: const Text(
+            'إنجازات ',
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+          ),
+          centerTitle: true,
+          elevation: 0,
+        ),
+        body: ListView.builder(
+          itemCount: children.length,
+          itemBuilder: (context, index) {
+            final child = children[index];
+            return Card(
+              color: Colors.purple[50],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              elevation: 6,
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          child['emoji']!,
+                          style: const TextStyle(fontSize: 36),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          child['name']!,
                           style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.deepPurple,
                           ),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
+                        ),
+                      ],
                     ),
-                    child: DropdownButton<int>(
-                      value: selectedNumbers[child],
-                      hint: const Text('Select Achievement Number'),
-                      isExpanded: true,
-                      underline: const SizedBox(),
-                      items: List.generate(6, (index) => index).map((number) {
-                        return DropdownMenuItem<int>(
-                          value: number,
-                          child: Text(number.toString()),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          _saveAchievement(child, value).then((_) {
-                            setState(() {});
-                          });
+                    const SizedBox(height: 12),
+                    FutureBuilder<int>(
+                      future: DatabaseHelper.instance.getTotalAchievements(child['name']!),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          return Text(
+                            'إجمالي الإنجازات: ${snapshot.data}',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              color: Colors.purple,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          );
                         }
+                        return const SizedBox.shrink();
                       },
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.purple[200]!, width: 2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: DropdownButton<int>(
+                        value: selectedNumbers[child['name']],
+                        hint: const Text('كم أنجزت اليوم', style: TextStyle(fontSize: 18)),
+                        isExpanded: true,
+                        icon: const Icon(Icons.emoji_events, color: Colors.amber),
+                        underline: const SizedBox(),
+                        items: List.generate(6, (index) => index).map((number) {
+                          return DropdownMenuItem<int>(
+                            value: number,
+                            child: Text(
+                              number.toString(),
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            _saveAchievement(child['name']!, value).then((_) {
+                              setState(() {});
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
