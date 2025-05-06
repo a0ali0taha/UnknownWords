@@ -31,42 +31,40 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         child_name TEXT NOT NULL,
         achievement_number INTEGER NOT NULL,
-        points INTEGER NOT NULL,
         date TEXT NOT NULL
       )
     ''');
   }
 
-  Future<int> insertAchievement(String childName, int achievementNumber, int points) async {
+  Future<int> insertAchievement(String childName, int achievementNumber) async {
     final db = await database;
     final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
     
-    // Check if child has already reached 5 achievements today
-    final count = Sqflite.firstIntValue(await db.rawQuery(
-      'SELECT COUNT(*) FROM achievements WHERE child_name = ? AND date = ?',
-      [childName, date]
-    )) ?? 0;
-    
-    if (count >= 5) {
-      throw Exception('Maximum 5 achievements per day reached for $childName');
-    }
+    // First, delete any existing achievement for today
+    await db.delete(
+      'achievements',
+      where: 'child_name = ? AND date = ?',
+      whereArgs: [childName, date],
+    );
 
+    // Then insert the new achievement
     return await db.insert('achievements', {
       'child_name': childName,
       'achievement_number': achievementNumber,
-      'points': points,
       'date': date,
     });
   }
-
-  Future<int> getTotalPoints(String childName) async {
+// get total of achievements.achievement_number for a child     
+  Future<int> getTotalAchievements(String childName) async {
     final db = await database;
-    final result = await db.rawQuery(
-      'SELECT SUM(points) as total FROM achievements WHERE child_name = ?',
-      [childName]
+    final results = await db.query(
+      'achievements',
+      where: 'child_name = ?',  
+      whereArgs: [childName],
     );
-    return result.first['total'] as int? ?? 0;
+    return results.fold<int>(0, (sum, row) => sum + (row['achievement_number'] as int));
   }
+
 
   Future<List<Map<String, dynamic>>> getTodayAchievements(String childName) async {
     final db = await database;

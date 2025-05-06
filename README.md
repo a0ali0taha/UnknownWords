@@ -5,9 +5,7 @@ A Flutter mobile app to track daily achievements for three children: Salma, Jana
 ## Features
 
 - Track achievements for each child
-- Each achievement is worth 10 points
-- Maximum 5 achievements per child per day
-- Congratulatory message when a child reaches 600 points
+- One achievement per child per day
 - Local data storage using SQLite
 
 ## Getting Started
@@ -25,7 +23,7 @@ A Flutter mobile app to track daily achievements for three children: Salma, Jana
 
 ## Usage
 
-1. The main screen shows each child's total points
-2. Tap "Add Achievement" to add a new achievement
-3. Enter the achievement description and save
-4. The app will automatically track points and show congratulations when a child reaches 600 points
+1. The main screen shows each child's name
+2. Select an achievement number from the dropdown
+3. The achievement will be saved for that day
+4. Only one achievement can be recorded per child per day

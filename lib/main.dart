@@ -34,25 +34,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final List<String> children = ['Salma', 'Jana', 'Hana'];
-  final Map<String, int> points = {};
   final Map<String, int?> selectedNumbers = {};
 
   @override
   void initState() {
     super.initState();
-    _loadPoints();
     // Initialize selected numbers for each child
     for (String child in children) {
       selectedNumbers[child] = null;
-    }
-  }
-
-  Future<void> _loadPoints() async {
-    for (String child in children) {
-      final totalPoints = await DatabaseHelper.instance.getTotalPoints(child);
-      setState(() {
-        points[child] = totalPoints;
-      });
     }
   }
 
@@ -61,9 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await DatabaseHelper.instance.insertAchievement(
         childName,
         number,
-        10, // Fixed point value
       );
-      _loadPoints();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
@@ -82,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
         itemCount: children.length,
         itemBuilder: (context, index) {
           final child = children[index];
-          final childPoints = points[child] ?? 0;
           
           return Card(
             margin: const EdgeInsets.all(8.0),
@@ -96,11 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Total Points: $childPoints',
-                    style: const TextStyle(fontSize: 18),
                   ),
                   const SizedBox(height: 16),
                   Container(
@@ -127,17 +108,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                   ),
-                  if (childPoints >= 600)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        '🎉 Congratulations! 🎉',
-                        style: TextStyle(
-                          color: Theme.of(context).primaryColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
