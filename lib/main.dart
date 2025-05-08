@@ -41,12 +41,25 @@ class _HomeScreenState extends State<HomeScreen> {
     {'name': 'هنا', 'emoji': '🌟'},
   ];
   final Map<String, int?> selectedNumbers = {};
+  Map<String, int> todayAchievements = {};
 
   @override
   void initState() {
     super.initState();
     for (var child in children) {
       selectedNumbers[child['name']!] = null;
+    }
+    _loadTodayAchievements();
+  }
+
+  Future<void> _loadTodayAchievements() async {
+    for (var child in children) {
+      final achievements = await DatabaseHelper.instance.getTodayAchievements(child['name']!);
+      if (achievements.isNotEmpty) {
+        setState(() {
+          todayAchievements[child['name']!] = achievements.first.achievementNumber;
+        });
+      }
     }
   }
 
@@ -128,6 +141,35 @@ class _HomeScreenState extends State<HomeScreen> {
                         return const SizedBox.shrink();
                       },
                     ),
+                    const SizedBox(height: 8),
+                    FutureBuilder<List>(
+                      future: DatabaseHelper.instance.getTodayAchievements(child['name']!),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const SizedBox.shrink();
+                        }
+                        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                          final todayAchievement = snapshot.data!.first.achievementNumber;
+                          return Text(
+                            'إنجاز اليوم: $todayAchievement',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              color: Colors.teal,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        } else {
+                          return const Text(
+                            'إنجاز اليوم: لا يوجد',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.teal,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        }
+                      },
+                    ),
                     const SizedBox(height: 18),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -137,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: DropdownButton<int>(
-                        value: selectedNumbers[child['name']],
+                        value: todayAchievements[child['name']!],
                         hint: const Text('كم أنجزت اليوم', style: TextStyle(fontSize: 18)),
                         isExpanded: true,
                         icon: const Icon(Icons.emoji_events, color: Colors.amber),
@@ -154,7 +196,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         onChanged: (value) {
                           if (value != null) {
                             _saveAchievement(child['name']!, value).then((_) {
-                              setState(() {});
+                              // setState(() {});
+                              // set dropdown value to value
+                            setState(() {
+                              todayAchievements[child['name']!] = value;
+                            });
                             });
                           }
                         },
