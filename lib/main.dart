@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:enjaz/database_helper.dart';
 import 'package:enjaz/achievement.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,15 @@ class MyApp extends StatelessWidget {
         fontFamily: 'ComicNeue',
         useMaterial3: true,
       ),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ar'),
+        Locale('en'),
+      ],
       home: const HomeScreen(),
     );
   }
@@ -36,12 +46,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final List<Map<String, String>> children = [
-    {'name': 'سلمى', 'emoji': '🦄'},
-    {'name': 'جنى', 'emoji': '🦋'},
-    {'name': 'هنا', 'emoji': '🌟'},
+    {'name': 'سلمى', 'emoji': '🌸'},
+    {'name': 'جنى', 'emoji': '🌸'},
+    {'name': 'هنا', 'emoji': '🌸'},
   ];
   final Map<String, int?> selectedNumbers = {};
   Map<String, int> todayAchievements = {};
+  // قائمة رسائل تشجيعية
+  final List<String> encouragementMessages = [
+    'أحسنتِ يا بطلة! 🌟',
+    'مذهل! استمري في الإنجاز! 🚀',
+    'كل يوم أفضل من السابق! 💪',
+    'فخورون بكِ! 👏',
+    'استمري، أنتِ رائعة! ✨',
+    'خطوة نحو النجاح! 🏆',
+  ];
 
   @override
   void initState() {
@@ -76,6 +95,27 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<int> getTotalAchievements(String name) {
+    return DatabaseHelper.instance.getTotalAchievements(name);
+  }
+
+  Future<List> getTodayAchievements(String name) {
+    return DatabaseHelper.instance.getTodayAchievements(name);
+  }
+
+  Future<void> _refreshAchievements(String childName) async {
+    final today = await DatabaseHelper.instance.getTodayAchievements(childName);
+    final total = await DatabaseHelper.instance.getTotalAchievements(childName);
+    setState(() {
+      if (today.isNotEmpty) {
+        todayAchievements[childName] = today.first.achievementNumber;
+      } else {
+        todayAchievements[childName] = 0;
+      }
+      // If you want to store total in a map, you can add it here
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -96,7 +136,16 @@ class _HomeScreenState extends State<HomeScreen> {
           itemBuilder: (context, index) {
             final child = children[index];
             return Card(
-              color: Colors.purple[50],
+              color: () {
+                final today = todayAchievements[child['name']!] ?? 0;
+                if (today == 0) {
+                  return Colors.purple[50]; // فاتح جدًا
+                } else if (today <= 2) {
+                  return Colors.purple[100]; // متوسط
+                } else {
+                  return Colors.amber[100]; // قوي ومشجع
+                }
+              }(),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
@@ -126,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 12),
                     FutureBuilder<int>(
-                      future: DatabaseHelper.instance.getTotalAchievements(child['name']!),
+                      future: getTotalAchievements(child['name']!),
                       builder: (context, snapshot) {
                         if (snapshot.hasData) {
                           return Text(
@@ -142,33 +191,40 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                     const SizedBox(height: 8),
-                    FutureBuilder<List>(
-                      future: DatabaseHelper.instance.getTodayAchievements(child['name']!),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const SizedBox.shrink();
-                        }
-                        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                          final todayAchievement = snapshot.data!.first.achievementNumber;
-                          return Text(
-                            'إنجاز اليوم: $todayAchievement',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              color: Colors.teal,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        } else {
-                          return const Text(
-                            'إنجاز اليوم: لا يوجد',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.teal,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        }
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 500),
+                      transitionBuilder: (Widget child, Animation<double> animation) {
+                        return ScaleTransition(scale: animation, child: child);
                       },
+                      child: FutureBuilder<List>(
+                        key: ValueKey(todayAchievements[child['name']!]),
+                        future: getTodayAchievements(child['name']!),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const SizedBox.shrink();
+                          }
+                          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                            final todayAchievement = snapshot.data!.first.achievementNumber;
+                            return Text(
+                              'إنجاز اليوم: $todayAchievement',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                color: Colors.teal,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          } else {
+                            return const Text(
+                              'إنجاز اليوم: لا يوجد',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.teal,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          }
+                        },
+                      ),
                     ),
                     const SizedBox(height: 18),
                     Container(
@@ -178,32 +234,209 @@ class _HomeScreenState extends State<HomeScreen> {
                         border: Border.all(color: Colors.purple[200]!, width: 2),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: DropdownButton<int>(
-                        value: todayAchievements[child['name']!],
-                        hint: const Text('كم أنجزت اليوم', style: TextStyle(fontSize: 18)),
-                        isExpanded: true,
-                        icon: const Icon(Icons.emoji_events, color: Colors.amber),
-                        underline: const SizedBox(),
-                        items: List.generate(6, (index) => index).map((number) {
-                          return DropdownMenuItem<int>(
-                            value: number,
-                            child: Text(
-                              number.toString(),
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                            ),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              Map<String, bool> selectedAchievements = {
+                                'النوم قبل العاشرة': false,
+                                'النوم نصف ساعه فقط بالنهار': false,
+                                'الصلاة على وقتها': false,
+                                'المدرسة قبل 6 ': false,
+                                'الحفظ': false,
+                                'ترتيب الشنطة بالليل': false,
+                                'غسيل اللانش بوكس بالليل': false
+                              };
+                              
+                              return StatefulBuilder(
+                                builder: (BuildContext context, StateSetter setState) {
+                                  return AlertDialog(
+                                    title: const Text('إنجازات اليوم'),
+                                    content: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: selectedAchievements.keys.map((achievement) {
+                                        return CheckboxListTile(
+                                          title: Text(achievement),
+                                          value: selectedAchievements[achievement],
+                                          onChanged: (bool? value) {
+                                            setState(() {
+                                              selectedAchievements[achievement] = value ?? false;
+                                            });
+                                          },
+                                        );
+                                      }).toList(),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: const Text('إلغاء'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () async {
+                                          int totalAchievements = selectedAchievements.values
+                                              .where((value) => value)
+                                              .length;
+                                          
+                                          if (totalAchievements > 0) {
+                                            await _saveAchievement(child['name']!, totalAchievements);
+                                            if (mounted) {
+                                              await _refreshAchievements(child['name']!);
+                                              // رسالة تشجيعية عشوائية
+                                              final randomMsg = (encouragementMessages..shuffle()).first;
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(randomMsg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
+                                                    backgroundColor: Colors.purple[200],
+                                                    duration: const Duration(seconds: 2),
+                                                  ),
+                                                );
+                                              }
+                                            }
+                                          }
+                                          if (mounted) {
+                                            Navigator.of(context).pop();
+                                          }
+                                        },
+                                        child: const Text('حفظ'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
                           );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            _saveAchievement(child['name']!, value).then((_) {
-                              // setState(() {});
-                              // set dropdown value to value
-                            setState(() {
-                              todayAchievements[child['name']!] = value;
-                            });
-                            });
-                          }
                         },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple[100],
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.emoji_events, color: Colors.amber),
+                            const SizedBox(width: 8),
+                            Text(
+                              todayAchievements[child['name']!] != null
+                                  ? 'تم إنجاز ${todayAchievements[child['name']!]} مهام'
+                                  : 'إضافة إنجازات اليوم',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // زر إضافة ليوم سابق
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        DateTime? selectedDate = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now().subtract(const Duration(days: 1)),
+                          firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                          lastDate: DateTime.now(),
+                          locale: const Locale('ar'),
+                        );
+                        if (selectedDate != null) {
+                          Map<String, bool> selectedAchievements = {
+                            'النوم قبل العاشرة': false,
+                            'النوم نصف ساعه فقط بالنهار': false,
+                            'الصلاة على وقتها': false,
+                          };
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return StatefulBuilder(
+                                builder: (BuildContext context, StateSetter setState) {
+                                  return AlertDialog(
+                                    title: Text('إنجازات ${DateFormat('yyyy/MM/dd').format(selectedDate)}'),
+                                    content: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: selectedAchievements.keys.map((achievement) {
+                                        return CheckboxListTile(
+                                          title: Text(achievement),
+                                          value: selectedAchievements[achievement],
+                                          onChanged: (bool? value) {
+                                            setState(() {
+                                              selectedAchievements[achievement] = value ?? false;
+                                            });
+                                          },
+                                        );
+                                      }).toList(),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: const Text('إلغاء'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () async {
+                                          int totalAchievements = selectedAchievements.values
+                                              .where((value) => value)
+                                              .length;
+                                          if (totalAchievements > 0) {
+                                            try {
+                                              await DatabaseHelper.instance.insertAchievement(
+                                                child['name']!,
+                                                totalAchievements,
+                                                date: selectedDate,
+                                              );
+                                              if (mounted) {
+                                                await _refreshAchievements(child['name']!);
+                                                final randomMsg = (encouragementMessages..shuffle()).first;
+                                                if (context.mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text(randomMsg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
+                                                      backgroundColor: Colors.purple[200],
+                                                      duration: const Duration(seconds: 2),
+                                                    ),
+                                                  );
+                                                }
+                                              }
+                                            } catch (e) {
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(content: Text(e.toString())),
+                                                );
+                                              }
+                                            }
+                                          }
+                                          if (mounted) {
+                                            Navigator.of(context).pop();
+                                          }
+                                        },
+                                        child: const Text('حفظ'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.calendar_today, color: Colors.deepPurple),
+                      label: const Text('إضافة ليوم سابق', style: TextStyle(fontSize: 16)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple[50],
+                        foregroundColor: Colors.deepPurple,
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
                       ),
                     ),
                   ],
