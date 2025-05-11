@@ -1,6 +1,6 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'lib/database_helper.dart';
-
+ 
 void main() async {
   // Initialize FFI
   sqfliteFfiInit();
