@@ -1,451 +1,517 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:enjaz/database_helper.dart';
-import 'package:enjaz/achievement.dart';
-import 'package:intl/intl.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/services.dart';
+import 'services/encryption_service.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await DatabaseHelper.instance.init();
-  runApp(const MyApp());
+void main() {
+  runApp(const PasswordEncrypterApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class PasswordEncrypterApp extends StatelessWidget {
+  const PasswordEncrypterApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'إنجازات ',
+      title: 'Password Encrypter',
       theme: ThemeData(
-        primarySwatch: Colors.purple,
-        fontFamily: 'ComicNeue',
+        primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('ar'),
-        Locale('en'),
-      ],
-      home: const HomeScreen(),
+      home: const HomePage(),
     );
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final List<Map<String, String>> children = [
-    {'name': 'سلمى', 'emoji': '🌸'},
-    {'name': 'جنى', 'emoji': '🌸'},
-    {'name': 'هنا', 'emoji': '🌸'},
-  ];
-  final Map<String, int?> selectedNumbers = {};
-  Map<String, int> todayAchievements = {};
-  // قائمة رسائل تشجيعية
-  final List<String> encouragementMessages = [
-    'أحسنتِ يا بطلة! 🌟',
-    'مذهل! استمري في الإنجاز! 🚀',
-    'كل يوم أفضل من السابق! 💪',
-    'فخورون بكِ! 👏',
-    'استمري، أنتِ رائعة! ✨',
-    'خطوة نحو النجاح! 🏆',
-  ];
+class _HomePageState extends State<HomePage> {
+  bool _hasMasterPassword = false;
+  bool _isLoading = true;
+  String? _currentMasterPassword;
+  List<Map<String, String>> _passwords = [];
 
   @override
   void initState() {
     super.initState();
-    for (var child in children) {
-      selectedNumbers[child['name']!] = null;
-    }
-    _loadTodayAchievements();
+    _checkMasterPassword();
   }
 
-  Future<void> _loadTodayAchievements() async {
-    for (var child in children) {
-      final achievements = await DatabaseHelper.instance.getTodayAchievements(child['name']!);
-      if (achievements.isNotEmpty) {
-        setState(() {
-          todayAchievements[child['name']!] = achievements.first.achievementNumber;
-        });
-      }
-    }
-  }
-
-  Future<void> _saveAchievement(String childName, int number) async {
-    try {
-      await DatabaseHelper.instance.insertAchievement(
-        childName,
-        number,
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    }
-  }
-
-  Future<int> getTotalAchievements(String name) {
-    return DatabaseHelper.instance.getTotalAchievements(name);
-  }
-
-  Future<List> getTodayAchievements(String name) {
-    return DatabaseHelper.instance.getTodayAchievements(name);
-  }
-
-  Future<void> _refreshAchievements(String childName) async {
-    final today = await DatabaseHelper.instance.getTodayAchievements(childName);
-    final total = await DatabaseHelper.instance.getTotalAchievements(childName);
+  Future<void> _checkMasterPassword() async {
+    final hasMaster = await EncryptionService.hasMasterPassword();
     setState(() {
-      if (today.isNotEmpty) {
-        todayAchievements[childName] = today.first.achievementNumber;
-      } else {
-        todayAchievements[childName] = 0;
-      }
-      // If you want to store total in a map, you can add it here
+      _hasMasterPassword = hasMaster;
+      _isLoading = false;
+    });
+    
+    if (hasMaster) {
+      _loadPasswords();
+    }
+  }
+
+  Future<void> _loadPasswords() async {
+    final passwords = await EncryptionService.getPasswords();
+    setState(() {
+      _passwords = passwords;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFFFF3E0), // Soft pastel background
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.purple[100],
-          title: const Text(
-            'إنجازات ',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-          centerTitle: true,
-          elevation: 0,
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
         ),
-        body: ListView.builder(
-          itemCount: children.length,
-          itemBuilder: (context, index) {
-            final child = children[index];
-            return Card(
-              color: () {
-                final today = todayAchievements[child['name']!] ?? 0;
-                if (today == 0) {
-                  return Colors.purple[50]; // فاتح جدًا
-                } else if (today <= 2) {
-                  return Colors.purple[100]; // متوسط
-                } else {
-                  return Colors.amber[100]; // قوي ومشجع
-                }
-              }(),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
+      );
+    }
+
+    if (!_hasMasterPassword) {
+      return _buildMasterPasswordSetup();
+    }
+
+    if (_currentMasterPassword == null) {
+      return _buildMasterPasswordLogin();
+    }
+
+    return _buildMainScreen();
+  }
+
+  Widget _buildMasterPasswordSetup() {
+    final _passwordController = TextEditingController();
+    final _confirmController = TextEditingController();
+    final _formKey = GlobalKey<FormState>();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Setup Master Password'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.lock_outline,
+                size: 80,
+                color: Colors.blue,
               ),
-              elevation: 6,
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          child['emoji']!,
-                          style: const TextStyle(fontSize: 36),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          child['name']!,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.deepPurple,
+              const SizedBox(height: 24),
+              const Text(
+                'Create Your Master Password',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'This password will be used to encrypt and decrypt all your saved passwords. Make sure to remember it!',
+                style: TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              TextFormField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Master Password',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a password';
+                  }
+                  if (value.length < 6) {
+                    return 'Password must be at least 6 characters';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _confirmController,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm Master Password',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value != _passwordController.text) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (_formKey.currentState!.validate()) {
+                      final success = await EncryptionService.createMasterPassword(
+                        _passwordController.text,
+                      );
+                      if (success) {
+                        setState(() {
+                          _hasMasterPassword = true;
+                          _currentMasterPassword = _passwordController.text;
+                        });
+                        _loadPasswords();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Failed to create master password'),
+                            backgroundColor: Colors.red,
                           ),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text(
+                    'Create Master Password',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMasterPasswordLogin() {
+    final _passwordController = TextEditingController();
+    final _formKey = GlobalKey<FormState>();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Enter Master Password'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.lock_outline,
+                size: 80,
+                color: Colors.blue,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Enter Your Master Password',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              TextFormField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Master Password',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your password';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (_formKey.currentState!.validate()) {
+                      final isValid = await EncryptionService.verifyMasterPassword(
+                        _passwordController.text,
+                      );
+                      if (isValid) {
+                        setState(() {
+                          _currentMasterPassword = _passwordController.text;
+                        });
+                        _loadPasswords();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Incorrect master password'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text(
+                    'Unlock',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainScreen() {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Password Encrypter'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              setState(() {
+                _currentMasterPassword = null;
+              });
+            },
+            tooltip: 'Lock App',
+          ),
+        ],
+      ),
+      body: _passwords.isEmpty
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.lock_outline,
+                    size: 80,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'No passwords saved yet',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Tap the + button to add your first password',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(8),
+              itemCount: _passwords.length,
+              itemBuilder: (context, index) {
+                final password = _passwords[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  child: ListTile(
+                    leading: const Icon(Icons.lock, color: Colors.blue),
+                    title: Text(
+                      password['title'] ?? 'Untitled',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(password['username'] ?? 'No username'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.visibility),
+                          onPressed: () => _showPasswordDialog(password),
+                          tooltip: 'View Password',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy),
+                          onPressed: () => _copyPassword(password),
+                          tooltip: 'Copy Password',
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    FutureBuilder<int>(
-                      future: getTotalAchievements(child['name']!),
-                      builder: (context, snapshot) {
-                        if (snapshot.hasData) {
-                          return Text(
-                            'إجمالي الإنجازات: ${snapshot.data}',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              color: Colors.purple,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 500),
-                      transitionBuilder: (Widget child, Animation<double> animation) {
-                        return ScaleTransition(scale: animation, child: child);
-                      },
-                      child: FutureBuilder<List>(
-                        key: ValueKey(todayAchievements[child['name']!]),
-                        future: getTodayAchievements(child['name']!),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const SizedBox.shrink();
-                          }
-                          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                            final todayAchievement = snapshot.data!.first.achievementNumber;
-                            return Text(
-                              'إنجاز اليوم: $todayAchievement',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                color: Colors.teal,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          } else {
-                            return const Text(
-                              'إنجاز اليوم: لا يوجد',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.teal,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.purple[200]!, width: 2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              Map<String, bool> selectedAchievements = {
-                                'النوم قبل العاشرة': false,
-                                'النوم نصف ساعه فقط بالنهار': false,
-                                'الصلاة على وقتها': false,
-                                'المدرسة قبل 6 ': false,
-                                'الحفظ': false,
-                                'ترتيب الشنطة بالليل': false,
-                                'غسيل اللانش بوكس بالليل': false
-                              };
-                              
-                              return StatefulBuilder(
-                                builder: (BuildContext context, StateSetter setState) {
-                                  return AlertDialog(
-                                    title: const Text('إنجازات اليوم'),
-                                    content: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: selectedAchievements.keys.map((achievement) {
-                                        return CheckboxListTile(
-                                          title: Text(achievement),
-                                          value: selectedAchievements[achievement],
-                                          onChanged: (bool? value) {
-                                            setState(() {
-                                              selectedAchievements[achievement] = value ?? false;
-                                            });
-                                          },
-                                        );
-                                      }).toList(),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: const Text('إلغاء'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () async {
-                                          int totalAchievements = selectedAchievements.values
-                                              .where((value) => value)
-                                              .length;
-                                          
-                                          if (totalAchievements > 0) {
-                                            await _saveAchievement(child['name']!, totalAchievements);
-                                            if (mounted) {
-                                              await _refreshAchievements(child['name']!);
-                                              // رسالة تشجيعية عشوائية
-                                              final randomMsg = (encouragementMessages..shuffle()).first;
-                                              if (context.mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(randomMsg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
-                                                    backgroundColor: Colors.purple[200],
-                                                    duration: const Duration(seconds: 2),
-                                                  ),
-                                                );
-                                              }
-                                            }
-                                          }
-                                          if (mounted) {
-                                            Navigator.of(context).pop();
-                                          }
-                                        },
-                                        child: const Text('حفظ'),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple[100],
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.emoji_events, color: Colors.amber),
-                            const SizedBox(width: 8),
-                            Text(
-                              todayAchievements[child['name']!] != null
-                                  ? 'تم إنجاز ${todayAchievements[child['name']!]} مهام'
-                                  : 'إضافة إنجازات اليوم',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // زر إضافة ليوم سابق
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        DateTime? selectedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now().subtract(const Duration(days: 1)),
-                          firstDate: DateTime.now().subtract(const Duration(days: 30)),
-                          lastDate: DateTime.now(),
-                          locale: const Locale('ar'),
-                        );
-                        if (selectedDate != null) {
-                          Map<String, bool> selectedAchievements = {
-                            'النوم قبل العاشرة': false,
-                            'النوم نصف ساعه فقط بالنهار': false,
-                            'الصلاة على وقتها': false,
-                          };
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return StatefulBuilder(
-                                builder: (BuildContext context, StateSetter setState) {
-                                  return AlertDialog(
-                                    title: Text('إنجازات ${DateFormat('yyyy/MM/dd').format(selectedDate)}'),
-                                    content: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: selectedAchievements.keys.map((achievement) {
-                                        return CheckboxListTile(
-                                          title: Text(achievement),
-                                          value: selectedAchievements[achievement],
-                                          onChanged: (bool? value) {
-                                            setState(() {
-                                              selectedAchievements[achievement] = value ?? false;
-                                            });
-                                          },
-                                        );
-                                      }).toList(),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).pop();
-                                        },
-                                        child: const Text('إلغاء'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () async {
-                                          int totalAchievements = selectedAchievements.values
-                                              .where((value) => value)
-                                              .length;
-                                          if (totalAchievements > 0) {
-                                            try {
-                                              await DatabaseHelper.instance.insertAchievement(
-                                                child['name']!,
-                                                totalAchievements,
-                                                date: selectedDate,
-                                              );
-                                              if (mounted) {
-                                                await _refreshAchievements(child['name']!);
-                                                final randomMsg = (encouragementMessages..shuffle()).first;
-                                                if (context.mounted) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(randomMsg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
-                                                      backgroundColor: Colors.purple[200],
-                                                      duration: const Duration(seconds: 2),
-                                                    ),
-                                                  );
-                                                }
-                                              }
-                                            } catch (e) {
-                                              if (context.mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(content: Text(e.toString())),
-                                                );
-                                              }
-                                            }
-                                          }
-                                          if (mounted) {
-                                            Navigator.of(context).pop();
-                                          }
-                                        },
-                                        child: const Text('حفظ'),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.calendar_today, color: Colors.deepPurple),
-                      label: const Text('إضافة ليوم سابق', style: TextStyle(fontSize: 16)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple[50],
-                        foregroundColor: Colors.deepPurple,
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
+                  ),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddPasswordDialog(),
+        child: const Icon(Icons.add),
       ),
+    );
+  }
+
+  void _showAddPasswordDialog() {
+    final _titleController = TextEditingController();
+    final _usernameController = TextEditingController();
+    final _passwordController = TextEditingController();
+    final _formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add New Password'),
+        content: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Title/Service',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a title';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _usernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Username/Email',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a username';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a password';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_formKey.currentState!.validate()) {
+                final success = await EncryptionService.savePassword(
+                  _titleController.text,
+                  _usernameController.text,
+                  _passwordController.text,
+                  _currentMasterPassword!,
+                );
+                if (success) {
+                  Navigator.of(context).pop();
+                  _loadPasswords();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Password saved successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to save password'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPasswordDialog(Map<String, String> password) {
+    final decryptedPassword = EncryptionService.decryptSavedPassword(
+      password['password']!,
+      _currentMasterPassword!,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(password['title'] ?? 'Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Username: ${password['username'] ?? 'N/A'}'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Password: $decryptedPassword'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: decryptedPassword));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Password copied to clipboard')),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyPassword(Map<String, String> password) {
+    final decryptedPassword = EncryptionService.decryptSavedPassword(
+      password['password']!,
+      _currentMasterPassword!,
+    );
+    
+    Clipboard.setData(ClipboardData(text: decryptedPassword));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Password copied to clipboard')),
     );
   }
 }

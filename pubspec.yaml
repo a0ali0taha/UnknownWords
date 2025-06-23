@@ -1,28 +1,26 @@
-name: enjaz
-description: A daily achievements tracker for children.
+name: enc
+description: "A new Flutter project."
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.4.1 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
-       sdk: flutter
-  cupertino_icons: ^1.0.2
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
-  path: ^1.8.3
-  intl: ^0.19.0
+  encrypt: ^5.0.3
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
-  hive_generator: ^2.0.1
-  build_runner: ^2.4.6
+  flutter_lints: ^3.0.0
+  mockito: ^5.4.4
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
+  integration_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
